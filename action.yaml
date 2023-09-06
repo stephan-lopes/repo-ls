@@ -1,0 +1,129 @@
+name: "LS"
+description: 'LS'
+
+inputs:
+  file:
+    description: file
+    required: true
+  sample:
+    description: teste
+    required: false
+
+outputs:
+  message:
+    description: Message from Swagger Result
+    value: ${{ steps.swagger-results.outputs.message }}    
+
+runs:
+  using: "composite"
+  steps:
+    - uses: microsoft/gpt-review@main
+
+    - run: |
+        echo "
+        started_at=$(date)
+        title_flag=[swagger validator]
+        " >> "$GITHUB_ENV"
+      shell: bash
+   
+    - run: |
+        echo "${{ toJson(inputs) }}"
+      shell: bash
+    # - name: "Tests"
+    #   run: |
+    #     [[ "${{ inputs.sample }}" ]] || { echo "docker_image_name input is empty" ; exit 1; }
+    #   shell: bash
+
+    - name: "Test"
+      if: ${{ ! inputs.file || ! inputs.sample }}
+      run: echo "::error::O argumento swagger-file-path está vazio."; exit 1 
+      shell: bash
+    
+    - name: "Check file exist or is blank"
+      id: check-file
+      run: |
+        if [[ ! -f ${{ inputs.file }} ]];
+        then
+          echo "::error::Arquivo ${{ inputs.file }} não encontrado"
+          exit 1
+        elif [[ ! -s ${{ inputs.file }} ]]; then
+          echo "::error::Arquivo ${{ inputs.file }} está vazio"
+          exit 1
+        fi
+      shell: bash
+
+    - name: Check file extension
+      id: file-extension
+      run: |
+        if [[ ${{ inputs.file }} =~ .*\.(yaml|yml) ]]; then
+          echo "Arquivo ${{ inputs.file }} interpretado como um yaml"
+          echo "type=yaml" >> $GITHUB_OUTPUT
+        elif [[ ${{ inputs.file }} == *.json ]]; then
+          echo "Arquivo ${{ inputs.file }} interpretado como json"
+          echo "type=json" >> $GITHUB_OUTPUT
+        else 
+          echo "::error::A extensão do arquivo ${{ inputs.file }} não é suportada"
+          exit 1
+        fi
+      shell: bash
+
+    - name: Run container for swagger validator
+      run: |
+        docker run -d --name swagger-validator-v2 --publish 8080:8080 swaggerapi/swagger-validator-v2
+      shell: bash
+
+    - name: Check container is up
+      run: |
+        for i in {1..30}; do 
+          if curl -s http://localhost:8080/ > /dev/null; then 
+            echo "::debug title=docker::Docker service is running!"
+            break
+          else
+            echo "Docker: waiting for Docker service..."
+            sleep 10 # espera 10 segundos entre as tentativas
+          fi
+          
+          if [[ $i == 30 ]]; then
+            echo "::error::Falha na criação do container"
+            exit 1
+          fi
+        done
+      shell: bash
+
+    - name: POST Swagger
+      id: post-swagger
+      run: |
+        JSON=$(curl --request POST \
+             --silent \
+             --header 'content-type: application/${{ steps.file-extension.outputs.type }}' \
+             --header 'accept: application/json' \
+             --url 'http://localhost:8080/validator/debug' \
+             --data-binary @${{ inputs.file }})
+        echo "json=$JSON" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Results
+      id: swagger-results
+      run: |
+        if [[ ! -z "${{ fromJson(steps.post-swagger.outputs.json).code }}" ]]; then
+          echo "::error::${{ fromJson(steps.post-swagger.outputs.json).message }}"
+          echo "${{ fromJson(steps.post-swagger.outputs.json).code }} - ${{ fromJson(steps.post-swagger.outputs.json).message }}" >> $GITHUB_OUTPUT
+          exit 1
+        else
+          echo "message=O ${{ inputs.file }} está validado!" >> $GITHUB_OUTPUT
+        fi
+      shell: bash 
+
+    - name: Show data
+      if: ${{ steps.swagger-results.outcome == 'failed' || steps.swagger-results.outcome == 'success' }}
+      run: |
+        echo "
+        action: $GITHUB_ACTION
+        branch: $GITHUB_REF_NAME
+        started_at: ${{ env.started_at }}
+        completed: $(date)
+        status: ${{ steps.swagger-results.outcome }}
+        message: ${{ steps.swagger-results.outputs.message }} 
+        action-version: $GITHUB_ACTION_PATH
+        "
+      shell: bash

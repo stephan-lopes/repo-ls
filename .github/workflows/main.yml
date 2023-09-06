@@ -1,9 +1,0 @@
-name: "LS"
-
-jobs:
-  validate:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: ls
-        run: ls
