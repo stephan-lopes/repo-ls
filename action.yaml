@@ -1,13 +1,10 @@
-name: "LS"
-description: 'LS'
+name: "Swagger Validator"
+description: 'Swagger Validator'
 
 inputs:
   file:
     description: file
     required: true
-  sample:
-    description: teste
-    required: false
 
 outputs:
   message:
@@ -17,8 +14,6 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - uses: microsoft/gpt-review@main
-
     - run: |
         echo "
         started_at=$(date)
@@ -34,8 +29,12 @@ runs:
     #     [[ "${{ inputs.sample }}" ]] || { echo "docker_image_name input is empty" ; exit 1; }
     #   shell: bash
 
+    - name: "teste variables"
+      run: echo "${{ env.HELLO_WORLD }}"
+      shell: bash
+
     - name: "Test"
-      if: ${{ ! inputs.file || ! inputs.sample }}
+      if: ${{ ! inputs.file }}
       run: echo "::error::O argumento swagger-file-path está vazio."; exit 1 
       shell: bash
     
@@ -52,7 +51,7 @@ runs:
         fi
       shell: bash
 
-    - name: Check file extension
+    - name: Check file extensioo
       id: file-extension
       run: |
         if [[ ${{ inputs.file }} =~ .*\.(yaml|yml) ]]; then
