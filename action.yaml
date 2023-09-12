@@ -5,6 +5,9 @@ inputs:
   file:
     description: file
     required: true
+  teste:
+    default: This is a new ${teste,,}-new
+    description: file test
 
 outputs:
   message:
@@ -18,6 +21,7 @@ runs:
         echo "
         started_at=$(date)
         title_flag=[swagger validator]
+        LIST="JAVA_MICROSERVICO DOCKER PYTHON"
         " >> "$GITHUB_ENV"
       shell: bash
    
@@ -75,16 +79,16 @@ runs:
       run: |
         for i in {1..30}; do 
           if curl -s http://localhost:8080/ > /dev/null; then 
-            echo "::debug title=docker::Docker service is running!"
-            break
+            echo "::debug title=docker::Docker service is running!";
+            break;
           else
-            echo "Docker: waiting for Docker service..."
-            sleep 10 # espera 10 segundos entre as tentativas
+            echo "Docker: waiting for Docker service...";
+            sleep 10 # espera 10 segundos entre as tentativas;
           fi
           
           if [[ $i == 30 ]]; then
-            echo "::error::Falha na criação do container"
-            exit 1
+            echo "::error::Falha na criação do container";
+            exit 1;
           fi
         done
       shell: bash
@@ -125,4 +129,13 @@ runs:
         message: ${{ steps.swagger-results.outputs.message }} 
         action-version: $GITHUB_ACTION_PATH
         "
+      shell: bash
+
+    - name: teste
+      if: ${{ ! contains(env.LIST, env.ARCH) }}
+      run: echo "${{ contains(env.LIST, env.ARCH) }} ${{ env.ARCH }} ${{toJson(github.workflow)}} ${{env.HELLO}} ${{env.ARCHI}}"
+      shell: bash
+
+    - name: teste
+      run: echo "${{ inputs.teste }}"
       shell: bash
